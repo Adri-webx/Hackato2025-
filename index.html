@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>CBT - Tienda y Papelería</title>
+  <link rel="stylesheet" href="estilos.css">
+  <link rel="icon" type="image/png" href="img/logo_prepa.jpg">
+</head>
+<body>
+
+  <div class="header">
+    <h1>CBT - Tienda y Papelería</h1>
+  </div>
+
+  <div id="main-menu" class="tabs">
+    <button onclick="abrirSeccion('tienda')">Tienda</button>
+    <button onclick="abrirSeccion('papeleria')">Papelería</button>
+  </div>
+
+  <div id="seccion"></div>
+
+  <h3>Carrito</h3>
+  <div id="carrito">No hay productos.</div>
+  <button onclick="continuarCompra()">Continuar compra</button>
+
+  <script>
+    const productosTienda = [
+      { id: "t1", nombre: "Torta de jamón", precio: 25, imagen: "img/torta.jpg" },
+      { id: "t2", nombre: "Papas naturales", precio: 20, imagen: "img/papas.jpg" },
+      { id: "t3", nombre: "Agua", precio: 15, imagen: "img/agua.jpg" },
+      { id: "t4", nombre: "Refresco", precio: 25, imagen: "img/refresco.jpg" },
+      { id: "t5", nombre: "Chocolate", precio: 10, imagen: "img/chocolate.jpg" }
+    ];
+
+    const productosPapeleria = [
+      { id: "p1", nombre: "Cuaderno 100 hojas", precio: 15, imagen: "img/libreta.jpg" },
+      { id: "p2", nombre: "Lapicero punta fina", precio: 5, imagen: "img/lapicero.jpg" },
+      { id: "p3", nombre: "Resistol", precio: 25, imagen: "img/resistol.jpg" },
+      { id: "p4", nombre: "Carpeta", precio: 30, imagen:"img/carpeta.jpg" },
+      { id: "p5", nombre: "Goma de borrar", precio: 10, imagen: "img/goma.jpg" }
+    ];
+
+    let carrito = JSON.parse(localStorage.getItem("carrito")) || [];
+
+    function abrirSeccion(seccion) {
+      let productos = seccion === "tienda" ? productosTienda : productosPapeleria;
+      let html = `<button class="btn-regresar" onclick="regresar()">← Regresar a página principal</button>
+                  <h2>${seccion === "tienda" ? "Tienda" : "Papelería"}</h2>
+                  <div class="productos">`;
+      productos.forEach(p => {
+        html += `<div class='producto'>
+                   <img src='${p.imagen}' alt='${p.nombre}' class='producto-img'>
+                   <h3>${p.nombre}</h3>
+                   <strong>$${p.precio}</strong><br>
+                   <button onclick='add(${JSON.stringify(p)})'>Añadir</button>
+                 </div>`;
+      });
+      html += `</div>`;
+      document.getElementById("main-menu").style.display = "none";
+      document.getElementById("seccion").innerHTML = html;
+      mostrarCarrito();
+    }
+
+    function regresar() {
+      document.getElementById("seccion").innerHTML = "";
+      document.getElementById("main-menu").style.display = "block";
+    }
+
+    function add(prod) {
+      let item = carrito.find(i => i.id === prod.id);
+      if(item) item.cantidad++;
+      else carrito.push({...prod, cantidad:1});
+      guardarCarrito();
+      mostrarCarrito();
+    }
+
+    function cancelar(id) {
+      let item = carrito.find(i => i.id===id);
+      if(!item) return;
+      item.cantidad--;
+      if(item.cantidad<=0) carrito = carrito.filter(i=>i.id!==id);
+      guardarCarrito();
+      mostrarCarrito();
+    }
+
+    function eliminarTodo(id) {
+      carrito = carrito.filter(i=>i.id!==id);
+      guardarCarrito();
+      mostrarCarrito();
+    }
+
+    function mostrarCarrito() {
+      let cont = document.getElementById("carrito");
+      if(carrito.length===0){ cont.innerHTML = "No hay productos."; return; }
+      let html="";
+      let total=0;
+      carrito.forEach(c=>{
+        total+=c.precio*c.cantidad;
+        html += `${c.nombre} x${c.cantidad} = $${c.precio*c.cantidad} 
+                 <button class="carrito-btn" onclick="cancelar('${c.id}')">Cancelar 1</button>
+                 <button class="carrito-btn" onclick="eliminarTodo('${c.id}')">Eliminar todo</button><br>`;
+      });
+      html += `<strong>Total: $${total}</strong>`;
+      cont.innerHTML = html;
+    }
+
+    async function continuarCompra() {
+      const totalMXN = carrito.reduce((s,c)=> s+c.precio*c.cantidad,0);
+
+      // 1️⃣ Obtener quote
+      let quoteData;
+      try {
+        const res = await fetch("http://localhost:3000/quote", {
+          method:"POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ amountMXN: totalMXN })
+        });
+        quoteData = await res.json();
+        if(!quoteData.success){
+          alert("Error al generar quote: "+quoteData.error);
+          return;
+        }
+      } catch(err){
+        alert("Error de conexión al obtener quote: "+err.message);
+        return;
+      }
+
+      // 2️⃣ Mostrar al usuario y confirmar
+      const pagarEUR = quoteData.debitAmount.value / (10 ** quoteData.debitAmount.assetScale);
+      const confirmar = confirm(`Vas a pagar ${pagarEUR} ${quoteData.debitAmount.assetCode} para que la tienda reciba ${totalMXN} MXN. Continuar?`);
+      if(!confirmar) return;
+
+      // 3️⃣ Hacer pago
+      try {
+        const res = await fetch("http://localhost:3000/pago", {
+          method:"POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ incomingPaymentId: quoteData.incomingPaymentId })
+        });
+        const data = await res.json();
+        if(data.success){
+          alert("Pago realizado correctamente");
+          carrito = [];
+          guardarCarrito();
+          mostrarCarrito();
+        } else {
+          alert("Error al pagar: "+data.error);
+        }
+      } catch(err){
+        alert("Error de conexión al pagar: "+err.message);
+      }
+    }
+
+    function guardarCarrito() {
+      localStorage.setItem("carrito", JSON.stringify(carrito));
+    }
+
+    // Inicializar
+    mostrarCarrito();
+  </script>
+</body>
+</html>
