@@ -1,13 +1,12 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>CBT - Tienda y Papelería</title>
-  <link rel="stylesheet" href="estilos.css">
-  <link rel="icon" type="image/png" href="img/logo_prepa.jpg">
+  <link rel="stylesheet" href="estilos.css" />
+  <link rel="icon" type="image/png" href="img/logo_prepa.jpg" />
 </head>
 <body>
-
   <div class="header">
     <h1>CBT - Tienda y Papelería</h1>
   </div>
@@ -21,7 +20,7 @@
 
   <h3>Carrito</h3>
   <div id="carrito">No hay productos.</div>
-  <button onclick="continuarCompra()">Continuar compra</button>
+  <button id="btnContinuar" onclick="continuarCompra()">Continuar compra</button>
 
   <script>
     const productosTienda = [
@@ -36,14 +35,14 @@
       { id: "p1", nombre: "Cuaderno 100 hojas", precio: 15, imagen: "img/libreta.jpg" },
       { id: "p2", nombre: "Lapicero punta fina", precio: 5, imagen: "img/lapicero.jpg" },
       { id: "p3", nombre: "Resistol", precio: 25, imagen: "img/resistol.jpg" },
-      { id: "p4", nombre: "Carpeta", precio: 30, imagen:"img/carpeta.jpg" },
+      { id: "p4", nombre: "Carpeta", precio: 30, imagen: "img/carpeta.jpg" },
       { id: "p5", nombre: "Goma de borrar", precio: 10, imagen: "img/goma.jpg" }
     ];
 
     let carrito = JSON.parse(localStorage.getItem("carrito")) || [];
 
     function abrirSeccion(seccion) {
-      let productos = seccion === "tienda" ? productosTienda : productosPapeleria;
+      const productos = seccion === "tienda" ? productosTienda : productosPapeleria;
       let html = `<button class="btn-regresar" onclick="regresar()">← Regresar a página principal</button>
                   <h2>${seccion === "tienda" ? "Tienda" : "Papelería"}</h2>
                   <div class="productos">`;
@@ -67,95 +66,85 @@
     }
 
     function add(prod) {
-      let item = carrito.find(i => i.id === prod.id);
-      if(item) item.cantidad++;
-      else carrito.push({...prod, cantidad:1});
+      const item = carrito.find(i => i.id === prod.id);
+      if (item) item.cantidad++;
+      else carrito.push({ ...prod, cantidad: 1 });
       guardarCarrito();
       mostrarCarrito();
     }
 
     function cancelar(id) {
-      let item = carrito.find(i => i.id===id);
-      if(!item) return;
+      const item = carrito.find(i => i.id === id);
+      if (!item) return;
       item.cantidad--;
-      if(item.cantidad<=0) carrito = carrito.filter(i=>i.id!==id);
+      if (item.cantidad <= 0) carrito = carrito.filter(i => i.id !== id);
       guardarCarrito();
       mostrarCarrito();
     }
 
     function eliminarTodo(id) {
-      carrito = carrito.filter(i=>i.id!==id);
+      carrito = carrito.filter(i => i.id !== id);
       guardarCarrito();
       mostrarCarrito();
     }
 
     function mostrarCarrito() {
-      let cont = document.getElementById("carrito");
-      if(carrito.length===0){ cont.innerHTML = "No hay productos."; return; }
-      let html="";
-      let total=0;
-      carrito.forEach(c=>{
-        total+=c.precio*c.cantidad;
-        html += `${c.nombre} x${c.cantidad} = $${c.precio*c.cantidad} 
+      const cont = document.getElementById("carrito");
+      const btn = document.getElementById("btnContinuar");
+      if (carrito.length === 0) {
+        cont.innerHTML = "No hay productos.";
+        btn.disabled = true;
+        return;
+      }
+      let html = "";
+      let total = 0;
+      carrito.forEach(c => {
+        total += c.precio * c.cantidad;
+        html += `${c.nombre} x${c.cantidad} = $${c.precio * c.cantidad} 
                  <button class="carrito-btn" onclick="cancelar('${c.id}')">Cancelar 1</button>
                  <button class="carrito-btn" onclick="eliminarTodo('${c.id}')">Eliminar todo</button><br>`;
       });
       html += `<strong>Total: $${total}</strong>`;
       cont.innerHTML = html;
-    }
-
-    async function continuarCompra() {
-      const totalMXN = carrito.reduce((s,c)=> s+c.precio*c.cantidad,0);
-
-      // 1️⃣ Obtener quote
-      let quoteData;
-      try {
-        const res = await fetch("http://localhost:3000/quote", {
-          method:"POST",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({ amountMXN: totalMXN })
-        });
-        quoteData = await res.json();
-        if(!quoteData.success){
-          alert("Error al generar quote: "+quoteData.error);
-          return;
-        }
-      } catch(err){
-        alert("Error de conexión al obtener quote: "+err.message);
-        return;
-      }
-
-      // 2️⃣ Mostrar al usuario y confirmar
-      const pagarEUR = quoteData.debitAmount.value / (10 ** quoteData.debitAmount.assetScale);
-      const confirmar = confirm(`Vas a pagar ${pagarEUR} ${quoteData.debitAmount.assetCode} para que la tienda reciba ${totalMXN} MXN. Continuar?`);
-      if(!confirmar) return;
-
-      // 3️⃣ Hacer pago
-      try {
-        const res = await fetch("http://localhost:3000/pago", {
-          method:"POST",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({ incomingPaymentId: quoteData.incomingPaymentId })
-        });
-        const data = await res.json();
-        if(data.success){
-          alert("Pago realizado correctamente");
-          carrito = [];
-          guardarCarrito();
-          mostrarCarrito();
-        } else {
-          alert("Error al pagar: "+data.error);
-        }
-      } catch(err){
-        alert("Error de conexión al pagar: "+err.message);
-      }
+      btn.disabled = total <= 0;
     }
 
     function guardarCarrito() {
       localStorage.setItem("carrito", JSON.stringify(carrito));
     }
 
-    // Inicializar
+    // Redirige al backend: /linkpay
+    async function continuarCompra() {
+      const totalMXN = carrito.reduce((s, c) => s + c.precio * c.cantidad, 0);
+      if (totalMXN <= 0) return alert("Tu carrito está vacío.");
+
+      const btn = document.getElementById("btnContinuar");
+      btn.disabled = true;
+      btn.textContent = "Redirigiendo a la wallet...";
+
+      guardarCarrito();
+
+      // Pasa monto, moneda y un memo opcional (lo usaremos en el incoming payment)
+      const params = new URLSearchParams({
+        amount: String(totalMXN),
+        currency: "MXN",
+        memo: "Compra CBT"
+      });
+      window.location.href = `/linkpay?${params.toString()}`;
+    }
+
+    // Si el servidor te regresa con ?paid=1 vaciamos carrito
+    (function checkPaidFlag() {
+      const params = new URLSearchParams(location.search);
+      if (params.get("paid") === "1") {
+        alert("Pago recibido exitosamente. ¡Gracias!");
+        carrito = [];
+        guardarCarrito();
+        mostrarCarrito();
+        history.replaceState({}, "", location.pathname);
+      }
+    })();
+
     mostrarCarrito();
   </script>
 </body>
