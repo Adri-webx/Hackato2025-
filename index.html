@@ -2,111 +2,287 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>CBT - Tienda y Papelería</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CBT - Tienda y Papelería Estudiantil</title>
   <link rel="stylesheet" href="estilos.css" />
   <link rel="icon" type="image/png" href="img/logo_prepa.jpg" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="header">
-    <h1>CBT - Tienda y Papelería</h1>
-  </div>
+  <!-- Header -->
+  <header class="header">
+    <div class="container">
+      <div class="logo">
+        <i class="fas fa-graduation-cap"></i>
+        <h1>CBT Tienda Estudiantil</h1>
+      </div>
+      <div class="cart-icon" id="cartIcon">
+        <i class="fas fa-shopping-cart"></i>
+        <span class="cart-count" id="cartCount">0</span>
+      </div>
+    </div>
+  </header>
 
-  <div id="main-menu" class="tabs">
-    <button onclick="abrirSeccion('tienda')">Tienda</button>
-    <button onclick="abrirSeccion('papeleria')">Papelería</button>
-  </div>
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <h2>¡Todo lo que necesitas para tu día escolar!</h2>
+      <p>Comida fresca y artículos de papelería al mejor precio</p>
+    </div>
+  </section>
 
-  <div id="seccion"></div>
+  <!-- Main Navigation -->
+  <nav class="main-nav" id="mainMenu">
+    <div class="container">
+      <div class="nav-cards">
+        <div class="nav-card" onclick="abrirSeccion('tienda')">
+          <div class="nav-icon">
+            <i class="fas fa-utensils"></i>
+          </div>
+          <h3>Tienda</h3>
+          <p>Comida y bebidas</p>
+        </div>
+        <div class="nav-card" onclick="abrirSeccion('papeleria')">
+          <div class="nav-icon">
+            <i class="fas fa-pen"></i>
+          </div>
+          <h3>Papelería</h3>
+          <p>Útiles escolares</p>
+        </div>
+      </div>
+    </div>
+  </nav>
 
-  <h3>Carrito</h3>
-  <div id="carrito">No hay productos.</div>
-  <button id="btnContinuar" onclick="continuarCompra()">Continuar compra</button>
+  <!-- Products Section -->
+  <section class="products-section" id="seccion"></section>
+
+  <!-- Shopping Cart -->
+  <section class="cart-section">
+    <div class="container">
+      <div class="cart-container">
+        <div class="cart-header">
+          <h3><i class="fas fa-shopping-cart"></i> Tu Carrito</h3>
+        </div>
+        <div class="cart-content" id="carrito">No hay productos en tu carrito.</div>
+        <div class="cart-footer">
+          <button class="btn-checkout" id="btnContinuar" onclick="continuarCompra()" disabled>
+            <i class="fas fa-credit-card"></i>
+            Proceder al pago
+          </button>
+          <div class="checkout-security">
+            <i class="fas fa-shield-alt"></i>
+            <span>Pago seguro con Interledger</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <script>
     const productosTienda = [
-      { id: "t1", nombre: "Torta de jamón", precio: 25, imagen: "img/torta.jpg" },
-      { id: "t2", nombre: "Papas naturales", precio: 20, imagen: "img/papas.jpg" },
-      { id: "t3", nombre: "Agua", precio: 15, imagen: "img/agua.jpg" },
-      { id: "t4", nombre: "Refresco", precio: 25, imagen: "img/refresco.jpg" },
-      { id: "t5", nombre: "Chocolate", precio: 10, imagen: "img/chocolate.jpg" }
+      { id: "t1", nombre: "Torta de jamón", precio: 25, imagen: "img/torta.jpg", categoria: "Comida" },
+      { id: "t2", nombre: "Papas naturales", precio: 20, imagen: "img/papas.jpg", categoria: "Snacks" },
+      { id: "t3", nombre: "Agua", precio: 15, imagen: "img/agua.jpg", categoria: "Bebidas" },
+      { id: "t4", nombre: "Refresco", precio: 25, imagen: "img/refresco.jpg", categoria: "Bebidas" },
+      { id: "t5", nombre: "Chocolate", precio: 10, imagen: "img/chocolate.jpg", categoria: "Dulces" }
     ];
 
     const productosPapeleria = [
-      { id: "p1", nombre: "Cuaderno 100 hojas", precio: 15, imagen: "img/libreta.jpg" },
-      { id: "p2", nombre: "Lapicero punta fina", precio: 5, imagen: "img/lapicero.jpg" },
-      { id: "p3", nombre: "Resistol", precio: 25, imagen: "img/resistol.jpg" },
-      { id: "p4", nombre: "Carpeta", precio: 30, imagen: "img/carpeta.jpg" },
-      { id: "p5", nombre: "Goma de borrar", precio: 10, imagen: "img/goma.jpg" }
+      { id: "p1", nombre: "Cuaderno 100 hojas", precio: 15, imagen: "img/libreta.jpg", categoria: "Cuadernos" },
+      { id: "p2", nombre: "Lapicero punta fina", precio: 5, imagen: "img/lapicero.jpg", categoria: "Escritura" },
+      { id: "p3", nombre: "Resistol", precio: 25, imagen: "img/resistol.jpg", categoria: "Adhesivos" },
+      { id: "p4", nombre: "Carpeta", precio: 30, imagen: "img/carpeta.jpg", categoria: "Organización" },
+      { id: "p5", nombre: "Goma de borrar", precio: 10, imagen: "img/goma.jpg", categoria: "Escritura" }
     ];
 
     let carrito = JSON.parse(localStorage.getItem("carrito")) || [];
 
     function abrirSeccion(seccion) {
       const productos = seccion === "tienda" ? productosTienda : productosPapeleria;
-      let html = `<button class="btn-regresar" onclick="regresar()">← Regresar a página principal</button>
-                  <h2>${seccion === "tienda" ? "Tienda" : "Papelería"}</h2>
-                  <div class="productos">`;
+      const iconos = {
+        tienda: "fas fa-utensils",
+        papeleria: "fas fa-pen"
+      };
+      
+      let html = `
+        <div class="container">
+          <div class="section-header">
+            <button class="btn-back" onclick="regresar()">
+              <i class="fas fa-arrow-left"></i> Regresar
+            </button>
+            <h2><i class="${iconos[seccion]}"></i> ${seccion === "tienda" ? "Tienda" : "Papelería"}</h2>
+          </div>
+          <div class="products-grid">
+      `;
+      
       productos.forEach(p => {
-        html += `<div class='producto'>
-                   <img src='${p.imagen}' alt='${p.nombre}' class='producto-img'>
-                   <h3>${p.nombre}</h3>
-                   <strong>$${p.precio}</strong><br>
-                   <button onclick='add(${JSON.stringify(p)})'>Añadir</button>
-                 </div>`;
+        html += `
+          <div class='product-card' data-category='${p.categoria}'>
+            <div class='product-image'>
+              <img src='${p.imagen}' alt='${p.nombre}' onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik04NCA3NkgxMTZWMTA0SDg0Vjc2WiIgZmlsbD0iIzlDQTNBRiIvPgo8cGF0aCBkPSJNODQgMTE2SDExNlYxMjRIODRWMTE2WiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K'">
+              <div class='product-category'>${p.categoria}</div>
+            </div>
+            <div class='product-info'>
+              <h3 class='product-name'>${p.nombre}</h3>
+              <div class='product-price'>$${p.precio}</div>
+              <button class='btn-add-to-cart' onclick='add(${JSON.stringify(p)})'>
+                <i class="fas fa-cart-plus"></i>
+                Agregar al carrito
+              </button>
+            </div>
+          </div>
+        `;
       });
-      html += `</div>`;
-      document.getElementById("main-menu").style.display = "none";
+      
+      html += `
+          </div>
+        </div>
+      `;
+      
+      document.getElementById("mainMenu").style.display = "none";
       document.getElementById("seccion").innerHTML = html;
       mostrarCarrito();
     }
 
     function regresar() {
       document.getElementById("seccion").innerHTML = "";
-      document.getElementById("main-menu").style.display = "block";
+      document.getElementById("mainMenu").style.display = "block";
     }
 
     function add(prod) {
       const item = carrito.find(i => i.id === prod.id);
-      if (item) item.cantidad++;
-      else carrito.push({ ...prod, cantidad: 1 });
+      if (item) {
+        item.cantidad++;
+      } else {
+        carrito.push({ ...prod, cantidad: 1 });
+      }
       guardarCarrito();
       mostrarCarrito();
+      
+      // Animación visual mejorada
+      const cartIcon = document.getElementById("cartIcon");
+      cartIcon.classList.add("cart-animate");
+      setTimeout(() => cartIcon.classList.remove("cart-animate"), 300);
+      
+      // Mostrar notificación temporal
+      showAddToCartNotification(prod.nombre);
+    }
+
+    function aumentarCantidad(id) {
+      const item = carrito.find(i => i.id === id);
+      if (item) {
+        item.cantidad++;
+        guardarCarrito();
+        mostrarCarrito();
+        animateQuantityChange(id, 'increase');
+      }
     }
 
     function cancelar(id) {
       const item = carrito.find(i => i.id === id);
       if (!item) return;
       item.cantidad--;
-      if (item.cantidad <= 0) carrito = carrito.filter(i => i.id !== id);
+      if (item.cantidad <= 0) {
+        carrito = carrito.filter(i => i.id !== id);
+      }
       guardarCarrito();
       mostrarCarrito();
+      animateQuantityChange(id, 'decrease');
     }
 
     function eliminarTodo(id) {
-      carrito = carrito.filter(i => i.id !== id);
-      guardarCarrito();
-      mostrarCarrito();
+      const item = carrito.find(i => i.id === id);
+      if (!item) return;
+      
+      // Animación de eliminación
+      const cartItemElement = document.querySelector(`[data-item-id="${id}"]`);
+      if (cartItemElement) {
+        cartItemElement.style.animation = 'slideOut 0.3s ease-in-out';
+        setTimeout(() => {
+          carrito = carrito.filter(i => i.id !== id);
+          guardarCarrito();
+          mostrarCarrito();
+        }, 300);
+      } else {
+        carrito = carrito.filter(i => i.id !== id);
+        guardarCarrito();
+        mostrarCarrito();
+      }
     }
 
     function mostrarCarrito() {
       const cont = document.getElementById("carrito");
       const btn = document.getElementById("btnContinuar");
+      const cartCount = document.getElementById("cartCount");
+      
+      const totalItems = carrito.reduce((sum, item) => sum + item.cantidad, 0);
+      cartCount.textContent = totalItems;
+      
       if (carrito.length === 0) {
-        cont.innerHTML = "No hay productos.";
+        cont.innerHTML = `
+          <div class="empty-cart">
+            <i class="fas fa-shopping-cart"></i>
+            <p>Tu carrito está vacío</p>
+            <small>¡Explora nuestros productos y comienza tu compra!</small>
+          </div>
+        `;
         btn.disabled = true;
         return;
       }
-      let html = "";
-      let total = 0;
+      
+      let html = `<div class="cart-items">`;
+      let subtotal = 0;
+      
       carrito.forEach(c => {
-        total += c.precio * c.cantidad;
-        html += `${c.nombre} x${c.cantidad} = $${c.precio * c.cantidad} 
-                 <button class="carrito-btn" onclick="cancelar('${c.id}')">Cancelar 1</button>
-                 <button class="carrito-btn" onclick="eliminarTodo('${c.id}')">Eliminar todo</button><br>`;
+        const itemTotal = c.precio * c.cantidad;
+        subtotal += itemTotal;
+        html += `
+          <div class="cart-item" data-item-id="${c.id}">
+            <div class="cart-item-info">
+              <h4>${c.nombre}</h4>
+              <div class="cart-item-details">
+                <div class="price">
+                  $${itemTotal}
+                  <span class="unit-price">($${c.precio} c/u)</span>
+                </div>
+              </div>
+            </div>
+            <div class="cart-item-actions">
+              <div class="quantity-controls">
+                <button class="btn-quantity btn-minus" onclick="cancelar('${c.id}')" title="Quitar uno">
+                  <i class="fas fa-minus"></i>
+                </button>
+                <span class="quantity-display">${c.cantidad}</span>
+                <button class="btn-quantity btn-plus" onclick="aumentarCantidad('${c.id}')" title="Agregar uno">
+                  <i class="fas fa-plus"></i>
+                </button>
+              </div>
+              <button class="btn-remove" onclick="eliminarTodo('${c.id}')" title="Eliminar producto">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        `;
       });
-      html += `<strong>Total: $${total}</strong>`;
+      
+      html += `</div>
+        <div class="cart-total">
+          <div class="total-breakdown">
+            <div class="total-row subtotal">
+              <span>Subtotal (${totalItems} artículos):</span>
+              <span>$${subtotal}</span>
+            </div>
+            <div class="total-row final">
+              <span>Total:</span>
+              <span class="total-amount">$${subtotal}</span>
+            </div>
+          </div>
+        </div>
+      `;
+      
       cont.innerHTML = html;
-      btn.disabled = total <= 0;
+      btn.disabled = subtotal <= 0;
     }
 
     function guardarCarrito() {
@@ -120,11 +296,14 @@
 
       const btn = document.getElementById("btnContinuar");
       btn.disabled = true;
-      btn.textContent = "Redirigiendo a la wallet...";
+      btn.innerHTML = `
+        <i class="fas fa-spinner fa-spin"></i>
+        Redirigiendo a la wallet...
+      `;
 
       guardarCarrito();
 
-      // Pasa monto, moneda y un memo opcional (lo usaremos en el incoming payment)
+      // Pasa monto, moneda y un memo opcional
       const params = new URLSearchParams({
         amount: String(totalMXN),
         currency: "MXN",
@@ -137,7 +316,8 @@
     (function checkPaidFlag() {
       const params = new URLSearchParams(location.search);
       if (params.get("paid") === "1") {
-        alert("Pago recibido exitosamente. ¡Gracias!");
+        // Mostrar notificación de éxito
+        showSuccessNotification("¡Pago recibido exitosamente! Gracias por tu compra.");
         carrito = [];
         guardarCarrito();
         mostrarCarrito();
@@ -145,6 +325,55 @@
       }
     })();
 
+    function showSuccessNotification(message) {
+      const notification = document.createElement('div');
+      notification.className = 'success-notification';
+      notification.innerHTML = `
+        <i class="fas fa-check-circle"></i>
+        <span>${message}</span>
+      `;
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.classList.add('show');
+      }, 100);
+      
+      setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => document.body.removeChild(notification), 300);
+      }, 4000);
+    }
+
+    function showAddToCartNotification(productName) {
+      const notification = document.createElement('div');
+      notification.className = 'cart-notification';
+      notification.innerHTML = `
+        <i class="fas fa-cart-plus"></i>
+        <span>¡${productName} agregado al carrito!</span>
+      `;
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.classList.add('show');
+      }, 100);
+      
+      setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => document.body.removeChild(notification), 300);
+      }, 2500);
+    }
+
+    function animateQuantityChange(itemId, type) {
+      const quantityElement = document.querySelector(`[data-item-id="${itemId}"] .quantity-display`);
+      if (quantityElement) {
+        quantityElement.style.animation = type === 'increase' ? 'bounceIn 0.3s ease' : 'pulse 0.3s ease';
+        setTimeout(() => {
+          quantityElement.style.animation = '';
+        }, 300);
+      }
+    }
+
+    // Inicializar
     mostrarCarrito();
   </script>
 </body>

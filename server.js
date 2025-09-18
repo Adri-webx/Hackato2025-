@@ -5,6 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
 import { readFileSync } from "fs";
+import { exec } from "child_process";
 import {
   createAuthenticatedClient,
   OpenPaymentsClientError,
@@ -36,8 +37,13 @@ app.use((err, _req, res, next) => {
   next(err);
 });
 
-// Sirve tu frontend desde /public (index.html, estilos.css, img/, etc.)
-app.use(express.static(path.join(__dirname, "public")));
+// Sirve tu frontend desde la raíz del proyecto (index.html, estilos.css, img/, etc.)
+app.use(express.static(__dirname));
+
+// Ruta específica para servir index.html en la raíz
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 const {
   PORT = 5500,
@@ -48,19 +54,122 @@ const {
   SENDING_KEY_ID,
   SENDING_PRIVATE_KEY_PATH, // p.ej. ./key/sender_private.key
 
-  // Receptor (quien cobra) - solo URL
+  // Receptor (quien cobra)
   RECEIVING_WALLET_ADDRESS_URL,
+  RECEIVING_KEY_ID,
+  RECEIVING_PRIVATE_KEY_PATH, // p.ej. ./key/receiver_private.key
 } = process.env;
+
+// ---- Cliente autenticado (Receptor) ----
+async function makeReceiverClient() {
+  try {
+    // Validar que las variables de entorno estén configuradas
+    if (!RECEIVING_WALLET_ADDRESS_URL) {
+      throw new Error('RECEIVING_WALLET_ADDRESS_URL no está configurada');
+    }
+    if (!RECEIVING_KEY_ID) {
+      throw new Error('RECEIVING_KEY_ID no está configurada');
+    }
+    if (!RECEIVING_PRIVATE_KEY_PATH) {
+      throw new Error('RECEIVING_PRIVATE_KEY_PATH no está configurada');
+    }
+
+    console.log('Configuración del cliente receptor:');
+    console.log('- Wallet URL:', RECEIVING_WALLET_ADDRESS_URL);
+    console.log('- Key ID:', RECEIVING_KEY_ID);
+    console.log('- Private Key Path:', RECEIVING_PRIVATE_KEY_PATH);
+
+    const privateKey = readFileSync(RECEIVING_PRIVATE_KEY_PATH, "utf8");
+    console.log('- Private Key del receptor cargada correctamente');
+
+    const client = await createAuthenticatedClient({
+      walletAddressUrl: RECEIVING_WALLET_ADDRESS_URL,
+      privateKey: privateKey,
+      keyId: RECEIVING_KEY_ID,
+    });
+
+    console.log('✅ Cliente receptor autenticado creado exitosamente');
+    return client;
+  } catch (error) {
+    console.error('❌ Error creando el cliente receptor:', error.message);
+    throw error;
+  }
+}
 
 // ---- Cliente autenticado (Emisor) ----
 async function makeSenderClient() {
-  return createAuthenticatedClient({
-    walletAddressUrl: SENDING_WALLET_ADDRESS_URL,
-    privateKey: readFileSync(SENDING_PRIVATE_KEY_PATH, "utf8"), // CONTENIDO PEM
-    keyId: SENDING_KEY_ID,
-  });
+  try {
+    // Validar que las variables de entorno estén configuradas
+    if (!SENDING_WALLET_ADDRESS_URL) {
+      throw new Error('SENDING_WALLET_ADDRESS_URL no está configurada');
+    }
+    if (!SENDING_KEY_ID) {
+      throw new Error('SENDING_KEY_ID no está configurada');
+    }
+    if (!SENDING_PRIVATE_KEY_PATH) {
+      throw new Error('SENDING_PRIVATE_KEY_PATH no está configurada');
+    }
+
+    console.log('Configuración del cliente:');
+    console.log('- Wallet URL:', SENDING_WALLET_ADDRESS_URL);
+    console.log('- Key ID:', SENDING_KEY_ID);
+    console.log('- Private Key Path:', SENDING_PRIVATE_KEY_PATH);
+
+    const privateKey = readFileSync(SENDING_PRIVATE_KEY_PATH, "utf8");
+    console.log('- Private Key cargada correctamente');
+
+    const client = await createAuthenticatedClient({
+      walletAddressUrl: SENDING_WALLET_ADDRESS_URL,
+      privateKey: privateKey,
+      keyId: SENDING_KEY_ID,
+    });
+
+    console.log('✅ Cliente autenticado creado exitosamente');
+    return client;
+  } catch (error) {
+    console.error('❌ Error creando el cliente autenticado:', error.message);
+    throw error;
+  }
 }
-const sendingClientPromise = makeSenderClient();
+
+// Inicializar ambos clientes con manejo de errores
+let sendingClientPromise;
+let receivingClientPromise;
+try {
+  sendingClientPromise = makeSenderClient();
+  receivingClientPromise = makeReceiverClient();
+} catch (error) {
+  console.error('❌ Error inicial del cliente:', error);
+  process.exit(1);
+}
+
+// Función para probar la conectividad de las wallet addresses
+async function testWalletConnectivity() {
+  try {
+    console.log('\n🔍 Probando conectividad de wallets...');
+    
+    // Probar cliente emisor
+    const sendingClient = await sendingClientPromise;
+    const sendingWallet = await sendingClient.walletAddress.get({
+      url: SENDING_WALLET_ADDRESS_URL
+    });
+    console.log('✅ Wallet emisora conectada:', sendingWallet.id);
+    
+    // Probar cliente receptor
+    const receivingClient = await receivingClientPromise;
+    const receivingWallet = await receivingClient.walletAddress.get({
+      url: RECEIVING_WALLET_ADDRESS_URL
+    });
+    console.log('✅ Wallet receptora conectada:', receivingWallet.id);
+    
+    console.log('✅ Todas las wallets están funcionando correctamente\n');
+    return true;
+  } catch (error) {
+    console.error('❌ Error de conectividad de wallets:', error.message);
+    console.error('   Verifica que las URLs de wallet sean correctas y estén activas');
+    return false;
+  }
+}
 
 // Utils
 const toMinor = (amountMajor, scale) =>
@@ -80,34 +189,77 @@ app.get("/linkpay", async (req, res) => {
   try {
     const amountMajor = Number(req.query.amount);
     if (!Number.isFinite(amountMajor) || amountMajor <= 0) {
-      return res.status(400).send("Parámetro 'amount' inválido");
+      return res.status(400).send(`
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <title>Error - CBT Tienda</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+            .error-container { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .error-title { color: #d32f2f; margin-bottom: 20px; }
+            .error-message { color: #666; margin-bottom: 20px; }
+            .back-button { background: #1976d2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; }
+            .back-button:hover { background: #1565c0; }
+          </style>
+        </head>
+        <body>
+          <div class="error-container">
+            <h2 class="error-title">❌ Parámetro inválido</h2>
+            <p class="error-message">El monto especificado no es válido. Por favor, regresa y selecciona productos válidos.</p>
+            <a href="/" class="back-button">← Volver a la tienda</a>
+          </div>
+        </body>
+        </html>
+      `);
     }
 
     const sendingClient = await sendingClientPromise;
+    const receivingClient = await receivingClientPromise;
 
     // Descubrir wallets
     const sendingWalletAddress = await sendingClient.walletAddress.get({
       url: SENDING_WALLET_ADDRESS_URL,
     });
-    const receivingWalletAddress = await sendingClient.walletAddress.get({
+    const receivingWalletAddress = await receivingClient.walletAddress.get({
       url: RECEIVING_WALLET_ADDRESS_URL,
     });
 
     const assetCode = receivingWalletAddress.assetCode;
     const assetScale = Number(receivingWalletAddress.assetScale ?? 2);
 
-    // 1) Grant (receptor) para crear Incoming Payment
-    const ipGrant = await sendingClient.grant.request(
-      { url: receivingWalletAddress.authServer },
-      {
-        access_token: {
-          access: [{ type: "incoming-payment", actions: ["read", "create", "complete"] }],
-        },
-      }
-    );
+    console.log('🔍 Debugging grant request:');
+    console.log('- Auth Server:', receivingWalletAddress.authServer);
+    console.log('- Asset Code:', assetCode);
+    console.log('- Asset Scale:', assetScale);
 
-    // 2) Crear Incoming Payment (valor en unidades menores)
-    const incomingPayment = await sendingClient.incomingPayment.create(
+    // 1) Grant (receptor) para crear Incoming Payment - USAR EL CLIENTE RECEPTOR
+    let ipGrant;
+    try {
+      ipGrant = await receivingClient.grant.request(
+        { url: receivingWalletAddress.authServer },
+        {
+          access_token: {
+            access: [{ type: "incoming-payment", actions: ["read", "create", "complete"] }],
+          },
+        }
+      );
+      console.log('✅ Grant request exitoso');
+    } catch (grantError) {
+      console.error('❌ Error específico en grant request:', {
+        message: grantError.message,
+        status: grantError.status,
+        code: grantError.code,
+        description: grantError.description,
+        details: grantError.details
+      });
+      throw grantError;
+    }
+
+    // 2) Crear Incoming Payment (valor en unidades menores) - USAR EL CLIENTE RECEPTOR
+    console.log('🔍 Creando Incoming Payment...');
+    const incomingPayment = await receivingClient.incomingPayment.create(
       {
         url: receivingWalletAddress.resourceServer,
         accessToken: ipGrant.access_token.value,
@@ -122,12 +274,15 @@ app.get("/linkpay", async (req, res) => {
         // metadata: { memo: "Compra CBT" }, // opcional
       }
     );
+    console.log('✅ Incoming Payment creado:', incomingPayment.id);
 
     // 3) Grant (emisor) para crear Quote
+    console.log('🔍 Solicitando grant para quote...');
     const quoteGrant = await sendingClient.grant.request(
       { url: sendingWalletAddress.authServer },
       { access_token: { access: [{ type: "quote", actions: ["create", "read"] }] } }
     );
+    console.log('✅ Quote grant obtenido');
 
     // 4) Crear Quote (para pagar ese incoming)
     const quote = await sendingClient.quote.create(
@@ -174,7 +329,30 @@ app.get("/linkpay", async (req, res) => {
     return res.redirect(outgoingPaymentGrant.interact.redirect);
   } catch (err) {
     console.error("/linkpay error:", err);
-    return res.status(500).send("No se pudo iniciar el pago.");
+    return res.status(500).send(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>Error - CBT Tienda</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+          .error-container { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .error-title { color: #d32f2f; margin-bottom: 20px; }
+          .error-message { color: #666; margin-bottom: 20px; }
+          .back-button { background: #1976d2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; }
+          .back-button:hover { background: #1565c0; }
+        </style>
+      </head>
+      <body>
+        <div class="error-container">
+          <h2 class="error-title">❌ Error en el pago</h2>
+          <p class="error-message">No se pudo iniciar el pago. Por favor, intenta de nuevo.</p>
+          <a href="/" class="back-button">← Volver a la tienda</a>
+        </div>
+      </body>
+      </html>
+    `);
   }
 });
 
@@ -183,7 +361,30 @@ app.get("/pay/callback", async (req, res) => {
   try {
     const { state, interact_ref } = req.query;
     if (!state || !paySessions.has(state)) {
-      return res.status(400).send("Sesión de pago no encontrada o expirada.");
+      return res.status(400).send(`
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <title>Error - CBT Tienda</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+            .error-container { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .error-title { color: #d32f2f; margin-bottom: 20px; }
+            .error-message { color: #666; margin-bottom: 20px; }
+            .back-button { background: #1976d2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; }
+            .back-button:hover { background: #1565c0; }
+          </style>
+        </head>
+        <body>
+          <div class="error-container">
+            <h2 class="error-title">❌ Sesión expirada</h2>
+            <p class="error-message">La sesión de pago no se encontró o ha expirado. Por favor, intenta realizar el pago nuevamente.</p>
+            <a href="/" class="back-button">← Volver a la tienda</a>
+          </div>
+        </body>
+        </html>
+      `);
     }
     const stash = paySessions.get(state);
 
@@ -198,7 +399,30 @@ app.get("/pay/callback", async (req, res) => {
     if (!isFinalizedGrant(finalized)) {
       return res
         .status(400)
-        .send("No se pudo finalizar la autorización. ¿Aceptaste el permiso en la wallet?");
+        .send(`
+          <!DOCTYPE html>
+          <html lang="es">
+          <head>
+            <meta charset="UTF-8">
+            <title>Error - CBT Tienda</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+              .error-container { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+              .error-title { color: #d32f2f; margin-bottom: 20px; }
+              .error-message { color: #666; margin-bottom: 20px; }
+              .back-button { background: #1976d2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; }
+              .back-button:hover { background: #1565c0; }
+            </style>
+          </head>
+          <body>
+            <div class="error-container">
+              <h2 class="error-title">❌ Autorización no completada</h2>
+              <p class="error-message">No se pudo finalizar la autorización. ¿Aceptaste el permiso en la wallet?</p>
+              <a href="/" class="back-button">← Volver a la tienda</a>
+            </div>
+          </body>
+          </html>
+        `);
     }
 
     // 8) Crear Outgoing Payment
@@ -392,17 +616,39 @@ app.post("/pago", async (req, res) => {
   }
 });
 
-// Fallback al index
-app.get("/", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
 // Handler global por si algo se escapa
 app.use((err, _req, res, _next) => {
   console.error("Unhandled error:", err);
   res.status(500).json({ success: false, error: "Internal Server Error" });
 });
 
-app.listen(PORT, () => {
+// Función para abrir el navegador automáticamente
+function abrirNavegador(url) {
+  const comando = process.platform === 'win32' ? 'start' : 
+                  process.platform === 'darwin' ? 'open' : 'xdg-open';
+  
+  exec(`${comando} ${url}`, (error) => {
+    if (error) {
+      console.log('No se pudo abrir el navegador automáticamente. Abre manualmente:', url);
+    } else {
+      console.log(`Navegador abierto en: ${url}`);
+    }
+  });
+}
+
+app.listen(PORT, async () => {
   console.log(`Servidor en ${BASE_URL}`);
+  
+  // Probar conectividad de wallets
+  const walletsOk = await testWalletConnectivity();
+  
+  if (walletsOk) {
+    // Abrir el navegador automáticamente después de 1 segundo
+    setTimeout(() => {
+      abrirNavegador(BASE_URL);
+    }, 1000);
+  } else {
+    console.log('⚠️  El servidor está funcionando pero hay problemas con las wallets');
+    console.log('   Revisa la configuración en el archivo .env');
+  }
 });
